@@ -7,7 +7,7 @@ mod router;
 mod store;
 mod templates;
 
-use router::init_router;
+use router::router;
 use std::sync::Arc;
 use store::{init_db, run_migrations, Store};
 
@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let store = Arc::new(Store::new(db));
 
-    let app = init_router(store);
+    let app = router(store);
     let listener = tokio::net::TcpListener::bind(SERVER_ADDR).await.unwrap();
     println!("Listening on: {}", listener.local_addr().unwrap());
 
