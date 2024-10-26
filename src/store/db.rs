@@ -1,12 +1,9 @@
-use std::ascii::AsciiExt;
-
-use crate::models::{Family, User};
+use crate::models::{Family, NewFamily, NewUser, User};
 use sqlx::{sqlite::SqliteQueryResult, SqlitePool};
 
 #[derive(Clone)]
 pub struct Store {
-    db: SqlitePool,
-
+    // db: SqlitePool,
     pub users: UserStore,
     pub family: FamilyStore,
 }
@@ -16,7 +13,11 @@ impl Store {
         let users = UserStore::new(db.clone());
         let family = FamilyStore::new(db.clone());
 
-        Self { db, users, family }
+        Self {
+            // db,
+            users,
+            family,
+        }
     }
 }
 
@@ -30,41 +31,81 @@ impl UserStore {
         Self { db }
     }
 
-    pub async fn create(&self, req: User) -> Result<(), sqlx::Error> {
+    pub async fn create(&self, req: NewUser) -> Result<SqliteQueryResult, sqlx::Error> {
         sqlx::query(
-            "INSERT INTO users (username, first_name, last_name, email)
+            "INSERT INTO users (username, first_name, last_name, email, family_id)
              VALUES (?, ?, ?, ?);",
         )
         .bind(req.username)
         .bind(req.first_name)
         .bind(req.last_name)
         .bind(req.email)
+        .bind(req.family_id)
         .execute(&self.db)
         .await
-        .unwrap();
-
-        Ok(())
     }
 
-    pub async fn get_all(&self) -> Result<Vec<User>, sqlx::Error> {
-        let users: Vec<User> =
-            sqlx::query_as("SELECT id, username, first_name, last_name, email FROM users")
-                .fetch_all(&self.db)
-                .await
-                .unwrap();
-
-        Ok(users)
+    pub async fn delete(&self, id: i64) -> Result<SqliteQueryResult, sqlx::Error> {
+        sqlx::query("DELETE FROM users WHERE id = (?);")
+            .bind(id)
+            .execute(&self.db)
+            .await
     }
-    // id INTEGER PRIMARY KEY NOT NULL,
-    // username TEXT NOT NULL,
-    // first_name TEXT NOT NULL,
-    // last_name TEXT NOT NULL,
-    // email TEXT NOT NULL,
-    // dob INTEGER NOT NULL,
+
+    pub async fn get(&self, id: i64) -> Result<Option<User>, sqlx::Error> {
+        sqlx::query_as::<_, User>(
+            "SELECT id, username, first_name, last_name, email, family_id FROM users WHERE id = (?);",
+        )
+        .bind(id)
+        .fetch_optional(&self.db)
+        .await
+    }
+
+    pub async fn update(&self, req: User) -> Result<SqliteQueryResult, sqlx::Error> {
+        sqlx::query(
+            r#"UPDATE users 
+                SET username = (?),
+                SET first_name = (?),
+                SET last_name = (?),
+                SET email = (?),
+                WHERE id = (?);"#,
+        )
+        .bind(req.username)
+        .bind(req.first_name)
+        .bind(req.last_name)
+        .bind(req.email)
+        .bind(req.id)
+        .execute(&self.db)
+        .await
+    }
+
+    pub async fn search(&self, query: &str) -> Result<Vec<User>, sqlx::Error> {
+        if query.is_empty() {
+            sqlx::query_as::<_, User>(
+                "SELECT id, username, first_name, last_name, email, family_id FROM users LIMIT 100;",
+            )
+            .fetch_all(&self.db)
+            .await
+        } else {
+            sqlx::query_as::<_, User>(
+                r#"SELECT id, username, first_name, last_name, email, family_id  
+                FROM users WHERE 
+                LOWER(username) LIKE '%' || ? || '%' 
+                OR LOWER(first_name) LIKE '%' || ? || '%' 
+                OR LOWER(last_name) LIKE '%' || ? || '%' 
+                OR LOWER(email) LIKE '%' || ? || '%' 
+                LIMIT 100
+                ORDER BY first_name, last_name;"#,
+            )
+            .bind(query.to_ascii_lowercase())
+            .fetch_all(&self.db)
+            .await
+        }
+    }
 }
 
 #[derive(Clone)]
-struct FamilyStore {
+pub struct FamilyStore {
     db: SqlitePool,
 }
 
@@ -73,7 +114,7 @@ impl FamilyStore {
         Self { db }
     }
 
-    pub async fn create(&self, req: Family) -> Result<SqliteQueryResult, sqlx::Error> {
+    pub async fn create(&self, req: NewFamily) -> Result<SqliteQueryResult, sqlx::Error> {
         sqlx::query("INSERT INTO family (name) VALUES (?);")
             .bind(req.name)
             .execute(&self.db)
@@ -95,7 +136,7 @@ impl FamilyStore {
     }
 
     pub async fn update(&self, req: Family) -> Result<SqliteQueryResult, sqlx::Error> {
-        sqlx::query("UPDATE family SET name = (?) WHERE (?);")
+        sqlx::query("UPDATE family SET name = (?) WHERE id = (?);")
             .bind(req.name)
             .bind(req.id)
             .execute(&self.db)

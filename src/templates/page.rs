@@ -40,6 +40,21 @@ pub fn home() -> Markup {
     }
 }
 
+pub async fn family_body() -> Markup {
+    page("Add Family", family_form().await)
+}
+
+pub async fn family_form() -> Markup {
+    html! {
+        h2 { "Create a new family (not like that)" }
+        form action="submit" method="post" {
+            label for="name" { "Family name (or nickname): " }
+            input type="text" name="name" id="name" required {};
+            input type="submit" value="Submit" {};
+        }
+    }
+}
+
 pub fn header(title: &str) -> Markup {
     html! {
         (DOCTYPE)
@@ -60,7 +75,7 @@ pub fn nav() -> Markup {
     html! {
         a href="/" { "Home" }
         span { " : " }
-        a href="/hello" { "Hello" }
+        a href="/add_family" { "Add Family" }
         span { " : " }
         a href="/hello/reese" { "Greeting"}
     }
